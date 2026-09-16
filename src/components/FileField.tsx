@@ -1,34 +1,39 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useObjectUrl } from '@/lib/useObjectUrl'
 
 type FileFieldProps = {
-  name: string
   label: string
   helpText: string
   example?: React.ReactNode
+  file: File | null
+  onChange: (file: File | null) => void
 }
 
 const MAX_MB = 10
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
 
-export default function FileField({ name, label, helpText, example }: FileFieldProps) {
+export default function FileField({ label, helpText, example, file, onChange }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const preview = useObjectUrl(file && file.type.startsWith('image/') ? file : null)
 
   function handleFiles(fileList: FileList | null) {
-    const file = fileList?.[0]
-    if (!file) return
-    if (file.size > MAX_MB * 1024 * 1024) {
+    const picked = fileList?.[0]
+    if (!picked) return
+    if (picked.size > MAX_MB * 1024 * 1024) {
       setError(`El archivo supera los ${MAX_MB}MB`)
-      setFileName(null)
-      setPreview(null)
+      onChange(null)
+      return
+    }
+    if (picked.type && !ALLOWED_TYPES.includes(picked.type)) {
+      setError('Formato no soportado — usa JPG, PNG, HEIC o PDF')
+      onChange(null)
       return
     }
     setError(null)
-    setFileName(file.name)
-    setPreview(file.type.startsWith('image/') ? URL.createObjectURL(file) : null)
+    onChange(picked)
   }
 
   return (
@@ -53,9 +58,7 @@ export default function FileField({ name, label, helpText, example }: FileFieldP
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault()
-          const dropped = e.dataTransfer.files
-          if (inputRef.current) inputRef.current.files = dropped
-          handleFiles(dropped)
+          handleFiles(e.dataTransfer.files)
         }}
         className="flex cursor-pointer items-center gap-4 rounded-xl border-2 border-dashed border-[#CBD5E1] px-4 py-6 transition-colors hover:border-[#043D35] hover:bg-[#ECFDF5]/40"
       >
@@ -68,8 +71,8 @@ export default function FileField({ name, label, helpText, example }: FileFieldP
           </div>
         )}
         <div className="text-sm">
-          {fileName ? (
-            <span className="font-medium text-[#043D35]">{fileName}</span>
+          {file ? (
+            <span className="font-medium text-[#043D35]">{file.name}</span>
           ) : (
             <>
               <span className="font-medium text-[#043D35]">Haz clic para subir</span>{' '}
@@ -82,7 +85,6 @@ export default function FileField({ name, label, helpText, example }: FileFieldP
       <input
         ref={inputRef}
         type="file"
-        name={name}
         accept="image/*,application/pdf"
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}

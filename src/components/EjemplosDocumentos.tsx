@@ -16,7 +16,7 @@ export function EjemploCedula() {
         </text>
         <rect x="14" y="110" width="90" height="7" rx="2" fill="#94A3B8" />
       </svg>
-      <p className="mt-1.5 text-center text-xs text-slate-500">Tapa solo el N° de documento</p>
+      <p className="mt-1.5 text-center text-xs text-slate-500">Tapa solo el N° de documento (con papel, edición o algún objeto)</p>
     </div>
   )
 }
@@ -29,7 +29,7 @@ export function EjemploTarjeta() {
         <rect x="16" y="18" width="30" height="22" rx="3" fill="#CBD5E1" />
         <rect x="16" y="64" width="130" height="16" rx="3" fill="#043D35" />
         <text x="81" y="75.5" textAnchor="middle" fontSize="8" fill="#FFFFFF" fontWeight="600">
-          TAPA ESTOS DÍGITOS
+          TAPA LOS PRIMEROS 12 DÍGITOS
         </text>
         <text x="16" y="102" fontSize="13" fill="#F1F5F9" letterSpacing="2">
           •••• 1234
@@ -38,7 +38,9 @@ export function EjemploTarjeta() {
           NOMBRE APELLIDO
         </text>
       </svg>
-      <p className="mt-1.5 text-center text-xs text-slate-500">Deja visibles solo los últimos 4 dígitos y tu nombre</p>
+      <p className="mt-1.5 text-center text-xs text-slate-500">
+        Tapa los primeros 12 dígitos (con papel, edición o algún objeto) — deja ver los últimos 4 y tu nombre
+      </p>
     </div>
   )
 }

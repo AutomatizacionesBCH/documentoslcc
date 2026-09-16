@@ -10,14 +10,7 @@ const BUCKET = 'documentos-solicitudes'
 const MAX_FILE_BYTES = 10 * 1024 * 1024
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'application/pdf']
 
-const FILE_FIELDS = [
-  { field: 'id_document', slug: 'cedula', label: 'la cédula de identidad' },
-  { field: 'card_photo', slug: 'tarjeta', label: 'la foto de la tarjeta' },
-  { field: 'balance_national', slug: 'saldo-nacional', label: 'el saldo nacional' },
-  { field: 'balance_intl', slug: 'saldo-internacional', label: 'el saldo internacional' },
-] as const
-
-function isFile(value: FormDataEntryValue | null): value is File {
+function isFile(value: FormDataEntryValue | null | undefined): value is File {
   return typeof value === 'object' && value !== null && typeof (value as File).arrayBuffer === 'function'
 }
 
@@ -46,29 +39,18 @@ export async function submitSolicitud(formData: FormData): Promise<SubmitResult>
   try {
     const full_name = String(formData.get('full_name') || '').trim()
     const rutRaw = String(formData.get('document_id') || '').trim()
-    const bank_name = String(formData.get('bank_name') || '').trim()
-    const account_number = String(formData.get('account_number') || '').trim()
-    const card_brand = String(formData.get('card_brand') || '').trim()
-    const card_last4 = String(formData.get('card_last4') || '').trim()
     const email = String(formData.get('email') || '').trim()
     const address = String(formData.get('address') || '').trim()
     const comuna = String(formData.get('comuna') || '').trim()
     const amountRaw = String(formData.get('amount_usd') || '').trim()
+    const transfer_bank_name = String(formData.get('transfer_bank_name') || '').trim()
+    const transfer_account_number = String(formData.get('transfer_account_number') || '').trim()
 
     if (!full_name) return { success: false, error: 'Falta el nombre completo' }
 
     const document_id = formatRutForStorage(rutRaw)
     if (!validateRut(document_id)) return { success: false, error: 'El RUT ingresado no es válido' }
 
-    if (!bank_name) return { success: false, error: 'Falta el banco de la tarjeta' }
-    if (!account_number) return { success: false, error: 'Falta el número de cuenta corriente' }
-
-    if (!CARD_BRANDS.includes(card_brand as (typeof CARD_BRANDS)[number])) {
-      return { success: false, error: 'Selecciona el tipo de tarjeta' }
-    }
-    if (!/^\d{4}$/.test(card_last4)) {
-      return { success: false, error: 'Los últimos 4 dígitos de la tarjeta deben ser numéricos' }
-    }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { success: false, error: 'El email ingresado no es válido' }
     }
@@ -78,36 +60,81 @@ export async function submitSolicitud(formData: FormData): Promise<SubmitResult>
     const amount_usd = Number(amountRaw)
     if (!amount_usd || amount_usd <= 0) return { success: false, error: 'El monto en USD no es válido' }
 
-    const files: Record<string, File> = {}
-    for (const { field, label } of FILE_FIELDS) {
-      const value = formData.get(field)
-      if (!isFile(value) || value.size === 0) {
-        return { success: false, error: `Falta subir ${label}` }
+    if (!transfer_bank_name) return { success: false, error: 'Falta el banco para la transferencia' }
+    if (!transfer_account_number) return { success: false, error: 'Falta el número de cuenta para la transferencia' }
+
+    const cardBanks = formData.getAll('card_bank[]').map((v) => String(v).trim())
+    const cardBrands = formData.getAll('card_brand[]').map((v) => String(v).trim())
+    const cardLast4s = formData.getAll('card_last4[]').map((v) => String(v).trim())
+    const cardPhotos = formData.getAll('card_photo[]')
+
+    if (cardBanks.length === 0) return { success: false, error: 'Agrega al menos una tarjeta a operar' }
+
+    const cardsData: { bank_name: string; card_brand: string; card_last4: string }[] = []
+    const cardFiles: File[] = []
+
+    for (let i = 0; i < cardBanks.length; i++) {
+      const bank = cardBanks[i]
+      const brand = cardBrands[i]
+      const last4 = cardLast4s[i]
+      const photo = cardPhotos[i]
+
+      if (!bank) return { success: false, error: `Falta el banco o emisor de la tarjeta ${i + 1}` }
+      if (!CARD_BRANDS.includes(brand as (typeof CARD_BRANDS)[number])) {
+        return { success: false, error: `Selecciona el tipo de la tarjeta ${i + 1}` }
       }
-      files[field] = value
+      if (!/^\d{4}$/.test(last4)) {
+        return { success: false, error: `Los últimos 4 dígitos de la tarjeta ${i + 1} deben ser numéricos` }
+      }
+      if (!isFile(photo) || photo.size === 0) {
+        return { success: false, error: `Falta la foto de la tarjeta ${i + 1}` }
+      }
+
+      cardsData.push({ bank_name: bank, card_brand: brand, card_last4: last4 })
+      cardFiles.push(photo)
+    }
+
+    const idDocument = formData.get('id_document')
+    const balanceNational = formData.get('balance_national')
+    const balanceIntl = formData.get('balance_intl')
+
+    if (!isFile(idDocument) || idDocument.size === 0) {
+      return { success: false, error: 'Falta la foto de la cédula de identidad' }
+    }
+    if (!isFile(balanceNational) || balanceNational.size === 0) {
+      return { success: false, error: 'Falta la foto del saldo nacional' }
+    }
+    if (!isFile(balanceIntl) || balanceIntl.size === 0) {
+      return { success: false, error: 'Falta la foto del saldo internacional' }
     }
 
     const folder = `${document_id}-${Date.now()}`
-    const paths: Record<string, string> = {}
-    for (const { field, slug, label } of FILE_FIELDS) {
-      paths[field] = await uploadFile(files[field], folder, slug, label)
-    }
+
+    const [id_document_path, balance_national_path, balance_intl_path] = await Promise.all([
+      uploadFile(idDocument, folder, 'cedula', 'la cédula de identidad'),
+      uploadFile(balanceNational, folder, 'saldo-nacional', 'el saldo nacional'),
+      uploadFile(balanceIntl, folder, 'saldo-internacional', 'el saldo internacional'),
+    ])
+
+    const cardPhotoPaths = await Promise.all(
+      cardFiles.map((file, i) => uploadFile(file, folder, `tarjeta-${i + 1}`, `la foto de la tarjeta ${i + 1}`))
+    )
+
+    const cards = cardsData.map((card, i) => ({ ...card, photo_path: cardPhotoPaths[i] }))
 
     const { error } = await supabaseAdmin.from('operation_requests').insert({
       full_name,
       document_id,
-      bank_name,
-      account_number,
-      card_brand,
-      card_last4,
       email,
       address,
       comuna,
       amount_usd,
-      id_document_path: paths.id_document,
-      card_photo_path: paths.card_photo,
-      balance_national_path: paths.balance_national,
-      balance_intl_path: paths.balance_intl,
+      transfer_bank_name,
+      transfer_account_number,
+      cards,
+      id_document_path,
+      balance_national_path,
+      balance_intl_path,
     })
 
     if (error) return { success: false, error: error.message }

@@ -1,4 +1,4 @@
-export const BANCOS_CHILE = [
+const BANCOS_BASE = [
   'Banco de Chile',
   'BancoEstado',
   'Banco Santander Chile',
@@ -15,8 +15,10 @@ export const BANCOS_CHILE = [
   'Banco BTG Pactual Chile',
   'China Construction Bank Chile',
   'Coopeuch',
-  'Tenpo',
-  'Otro',
 ] as const
 
-export type BancoChile = (typeof BANCOS_CHILE)[number]
+/** Banco de la cuenta a la que se transfiere el monto de la operación. */
+export const BANCOS_TRANSFERENCIA = [...BANCOS_BASE, 'Otro'] as const
+
+/** Banco o billetera que emite la tarjeta que se va a operar. */
+export const EMISORES_TARJETA = [...BANCOS_BASE, 'Mercado Pago', 'MACH', 'Tenpo', 'Otro'] as const

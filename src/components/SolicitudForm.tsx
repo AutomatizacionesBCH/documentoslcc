@@ -3,20 +3,12 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import FileField from './FileField'
-import { EjemploCedula, EjemploTarjeta } from './EjemplosDocumentos'
-import { BANCOS_CHILE } from '@/lib/bancos'
-import { CARD_BRANDS } from '@/types'
+import TarjetaCard, { newCard, resolveCardBank, type CardFormData } from './TarjetaCard'
+import PreviewSolicitud from './PreviewSolicitud'
+import { Field, inputClass } from './FormField'
+import { EjemploCedula } from './EjemplosDocumentos'
+import { BANCOS_TRANSFERENCIA } from '@/lib/bancos'
 import { submitSolicitud } from '@/lib/actions'
-
-const inputClass =
-  'w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2.5 text-sm text-[#0F172A] outline-none transition-colors focus:border-[#043D35] focus:ring-2 focus:ring-[#ECFDF5] placeholder:text-slate-400'
-
-const REQUIRED_FILES = [
-  { field: 'id_document', label: 'la cédula de identidad' },
-  { field: 'card_photo', label: 'la foto de la tarjeta' },
-  { field: 'balance_national', label: 'el saldo nacional' },
-  { field: 'balance_intl', label: 'el saldo internacional' },
-] as const
 
 function formatRutInput(value: string): string {
   const clean = value.replace(/[^\dkK]/g, '').toUpperCase()
@@ -28,73 +20,140 @@ function formatRutInput(value: string): string {
   return `${formattedBody}-${dv}`
 }
 
-function Field({
-  label,
-  required = true,
-  children,
-}: {
-  label: string
-  required?: boolean
-  children: React.ReactNode
-}) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="text-sm font-medium text-[#0F172A]">
-        {label} {required && <span className="text-red-600">*</span>}
-      </span>
-      {children}
-    </label>
-  )
-}
-
 export default function SolicitudForm() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [step, setStep] = useState<'form' | 'preview'>('form')
   const [error, setError] = useState<string | null>(null)
+
+  const [fullName, setFullName] = useState('')
   const [rut, setRut] = useState('')
-  const [bankOption, setBankOption] = useState('')
-  const [otroBanco, setOtroBanco] = useState('')
-  const [cardLast4, setCardLast4] = useState('')
+  const [email, setEmail] = useState('')
   const [amount, setAmount] = useState('')
+  const [address, setAddress] = useState('')
+  const [comuna, setComuna] = useState('')
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  const [transferBankOption, setTransferBankOption] = useState('')
+  const [transferOtroBanco, setTransferOtroBanco] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+
+  const [cards, setCards] = useState<CardFormData[]>([newCard()])
+
+  const [idDocument, setIdDocument] = useState<File | null>(null)
+  const [balanceNational, setBalanceNational] = useState<File | null>(null)
+  const [balanceIntl, setBalanceIntl] = useState<File | null>(null)
+
+  function updateCard(id: string, patch: Partial<CardFormData>) {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }
+  function addCard() {
+    setCards((prev) => [...prev, newCard()])
+  }
+  function removeCard(id: string) {
+    setCards((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev))
+  }
+
+  const transferBankFinal = transferBankOption === 'Otro' ? transferOtroBanco.trim() : transferBankOption
+
+  function validate(): string | null {
+    if (!fullName.trim()) return 'Falta el nombre completo'
+    if (!rut.trim()) return 'Falta el RUT'
+    if (!email.trim()) return 'Falta el email'
+    if (!amount || Number(amount) <= 0) return 'El monto en USD no es válido'
+    if (!address.trim()) return 'Falta la dirección'
+    if (!comuna.trim()) return 'Falta la comuna'
+    if (!transferBankFinal) return 'Selecciona o escribe el banco para la transferencia'
+    if (!accountNumber.trim()) return 'Falta el número de cuenta corriente'
+
+    for (const [i, card] of cards.entries()) {
+      if (!resolveCardBank(card)) return `Selecciona el banco o emisor de la tarjeta ${i + 1}`
+      if (!card.cardBrand) return `Selecciona el tipo de la tarjeta ${i + 1}`
+      if (card.cardLast4.length !== 4) return `Ingresa los últimos 4 dígitos de la tarjeta ${i + 1}`
+      if (!card.photo) return `Falta la foto de la tarjeta ${i + 1}`
+    }
+
+    if (!idDocument) return 'Falta subir la cédula de identidad'
+    if (!balanceNational) return 'Falta subir el saldo nacional'
+    if (!balanceIntl) return 'Falta subir el saldo internacional'
+    return null
+  }
+
+  function handleContinue(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    const validationError = validate()
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setError(null)
+    setStep('preview')
+  }
 
-    const formData = new FormData(e.currentTarget)
-
-    const bankFinal = bankOption === 'Otro' ? otroBanco.trim() : bankOption
-    if (!bankFinal) {
-      setError('Selecciona o escribe el banco de tu tarjeta')
-      return
-    }
-    formData.set('bank_name', bankFinal)
-
-    if (cardLast4.length !== 4) {
-      setError('Ingresa los últimos 4 dígitos de tu tarjeta')
+  function handleConfirm() {
+    const validationError = validate()
+    if (validationError) {
+      setError(validationError)
+      setStep('form')
       return
     }
 
-    for (const { field, label } of REQUIRED_FILES) {
-      const file = formData.get(field)
-      if (!(file instanceof File) || file.size === 0) {
-        setError(`Falta subir ${label}`)
-        return
-      }
+    const formData = new FormData()
+    formData.set('full_name', fullName.trim())
+    formData.set('document_id', rut)
+    formData.set('email', email.trim())
+    formData.set('amount_usd', amount)
+    formData.set('address', address.trim())
+    formData.set('comuna', comuna.trim())
+    formData.set('transfer_bank_name', transferBankFinal)
+    formData.set('transfer_account_number', accountNumber.trim())
+    formData.set('id_document', idDocument as File)
+    formData.set('balance_national', balanceNational as File)
+    formData.set('balance_intl', balanceIntl as File)
+    for (const card of cards) {
+      formData.append('card_bank[]', resolveCardBank(card))
+      formData.append('card_brand[]', card.cardBrand)
+      formData.append('card_last4[]', card.cardLast4)
+      formData.append('card_photo[]', card.photo as File)
     }
 
     startTransition(async () => {
       const result = await submitSolicitud(formData)
       if (!result.success) {
         setError(result.error)
+        setStep('form')
         return
       }
       router.push('/gracias')
     })
   }
 
+  if (step === 'preview') {
+    return (
+      <PreviewSolicitud
+        data={{
+          fullName,
+          rut,
+          email,
+          amount,
+          address,
+          comuna,
+          transferBankFinal,
+          accountNumber,
+          cards,
+          idDocument,
+          balanceNational,
+          balanceIntl,
+        }}
+        error={error}
+        isPending={isPending}
+        onEdit={() => setStep('form')}
+        onConfirm={handleConfirm}
+      />
+    )
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-10">
+    <form onSubmit={handleContinue} className="space-y-10">
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
@@ -104,63 +163,96 @@ export default function SolicitudForm() {
         <h2 className="text-lg font-semibold text-[#043D35]">1. Datos personales</h2>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Nombre completo">
-            <input name="full_name" required className={inputClass} placeholder="Como aparece en tu cédula" />
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              className={inputClass}
+              placeholder="Como aparece en tu cédula"
+            />
           </Field>
           <Field label="RUT">
             <input
-              name="document_id"
-              required
               value={rut}
               onChange={(e) => setRut(formatRutInput(e.target.value))}
+              required
               className={inputClass}
               placeholder="12.345.678-9"
               maxLength={12}
             />
           </Field>
           <Field label="Email">
-            <input type="email" name="email" required className={inputClass} placeholder="tucorreo@ejemplo.com" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className={inputClass}
+              placeholder="tucorreo@ejemplo.com"
+            />
           </Field>
           <Field label="Monto en USD a operar">
             <input
-              name="amount_usd"
-              required
-              inputMode="decimal"
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+              required
+              inputMode="decimal"
               className={inputClass}
               placeholder="1000"
             />
           </Field>
           <Field label="Dirección">
-            <input name="address" required className={inputClass} placeholder="Calle, número, depto" />
+            <input
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              required
+              className={inputClass}
+              placeholder="Calle, número, depto"
+            />
           </Field>
           <Field label="Comuna">
-            <input name="comuna" required className={inputClass} placeholder="Ej: Providencia" />
+            <input
+              value={comuna}
+              onChange={(e) => setComuna(e.target.value)}
+              required
+              className={inputClass}
+              placeholder="Ej: Providencia"
+            />
           </Field>
         </div>
       </section>
 
-      {/* Sección 2 — Datos bancarios */}
+      {/* Sección 2 — Datos para la transferencia */}
       <section className="space-y-5">
-        <h2 className="text-lg font-semibold text-[#043D35]">2. Datos bancarios</h2>
+        <h2 className="text-lg font-semibold text-[#043D35]">2. Datos para la transferencia</h2>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Estos datos son necesarios para transferir el monto acordado a la cuenta bancaria del{' '}
+          <strong>titular de la tarjeta (tú mismo)</strong>. Por ningún motivo la operación puede realizarse a la
+          cuenta de un tercero.
+        </div>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Banco de la tarjeta">
-            <select value={bankOption} onChange={(e) => setBankOption(e.target.value)} required className={inputClass}>
+          <Field label="Banco de la cuenta">
+            <select
+              value={transferBankOption}
+              onChange={(e) => setTransferBankOption(e.target.value)}
+              required
+              className={inputClass}
+            >
               <option value="" disabled>
                 Selecciona tu banco
               </option>
-              {BANCOS_CHILE.map((b) => (
+              {BANCOS_TRANSFERENCIA.map((b) => (
                 <option key={b} value={b}>
                   {b}
                 </option>
               ))}
             </select>
           </Field>
-          {bankOption === 'Otro' && (
+          {transferBankOption === 'Otro' && (
             <Field label="¿Cuál banco?">
               <input
-                value={otroBanco}
-                onChange={(e) => setOtroBanco(e.target.value)}
+                value={transferOtroBanco}
+                onChange={(e) => setTransferOtroBanco(e.target.value)}
                 required
                 className={inputClass}
                 placeholder="Nombre del banco"
@@ -168,70 +260,83 @@ export default function SolicitudForm() {
             </Field>
           )}
           <Field label="Número de cuenta corriente">
-            <input name="account_number" required inputMode="numeric" className={inputClass} placeholder="000123456789" />
-          </Field>
-          <Field label="Tipo de tarjeta">
-            <select name="card_brand" required defaultValue="" className={inputClass}>
-              <option value="" disabled>
-                Selecciona
-              </option>
-              {CARD_BRANDS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Últimos 4 dígitos de la tarjeta">
             <input
-              value={cardLast4}
-              onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              name="card_last4"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
               required
               inputMode="numeric"
-              maxLength={4}
               className={inputClass}
-              placeholder="1234"
+              placeholder="000123456789"
             />
           </Field>
         </div>
       </section>
 
-      {/* Sección 3 — Documentos */}
+      {/* Sección 3 — Tarjeta(s) a operar */}
+      <section className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-[#043D35]">3. Tarjeta(s) a operar</h2>
+          <button
+            type="button"
+            onClick={addCard}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#043D35] px-3 py-1.5 text-sm font-medium text-[#043D35] transition-colors hover:bg-[#ECFDF5]"
+          >
+            <PlusIcon /> Agregar otra tarjeta
+          </button>
+        </div>
+        <div className="space-y-4">
+          {cards.map((card, i) => (
+            <TarjetaCard
+              key={card.id}
+              index={i}
+              card={card}
+              onChange={updateCard}
+              onRemove={removeCard}
+              removable={cards.length > 1}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Sección 4 — Documentos */}
       <section className="space-y-6">
-        <h2 className="text-lg font-semibold text-[#043D35]">3. Documentos</h2>
+        <h2 className="text-lg font-semibold text-[#043D35]">4. Documentos</h2>
 
         <FileField
-          name="id_document"
           label="Cédula de identidad"
-          helpText="Foto de tu cédula por delante. Tapa con tu dedo el N° de documento (serie), dejando visibles tu RUN, nombre y fecha de nacimiento."
+          helpText="Foto de tu cédula por delante. Cubre el N° de documento (serie) —con un papel, editando la foto o algún objeto que tengas a mano— dejando visibles tu RUN, nombre y fecha de nacimiento."
           example={<EjemploCedula />}
+          file={idDocument}
+          onChange={setIdDocument}
         />
         <FileField
-          name="card_photo"
-          label="Foto delantera de la tarjeta"
-          helpText="Foto de la tarjeta que vas a usar. Tapa los primeros dígitos, dejando visibles solo los últimos 4 y el nombre del titular."
-          example={<EjemploTarjeta />}
-        />
-        <FileField
-          name="balance_national"
           label="Saldo nacional"
           helpText="Captura de pantalla o foto del saldo disponible en tu cuenta nacional."
+          file={balanceNational}
+          onChange={setBalanceNational}
         />
         <FileField
-          name="balance_intl"
           label="Saldo internacional"
           helpText="Captura de pantalla o foto del saldo disponible en tu tarjeta o cuenta internacional."
+          file={balanceIntl}
+          onChange={setBalanceIntl}
         />
       </section>
 
       <button
         type="submit"
-        disabled={isPending}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#043D35] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#032B25] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#043D35] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#032B25] sm:w-auto"
       >
-        {isPending ? 'Enviando...' : 'Enviar solicitud'}
+        Revisar solicitud
       </button>
     </form>
+  )
+}
+
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
   )
 }
