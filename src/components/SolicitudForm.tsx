@@ -270,6 +270,12 @@ export default function SolicitudForm() {
             />
           </Field>
         </div>
+        {transferBankOption === 'BancoEstado' && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            A las cuentas de <strong>BancoEstado</strong> no podemos transferir más de <strong>$1.000.000 CLP</strong>.
+            Si tu operación supera ese monto, considera elegir una cuenta de otro banco.
+          </div>
+        )}
       </section>
 
       {/* Sección 3 — Tarjeta(s) a operar */}
