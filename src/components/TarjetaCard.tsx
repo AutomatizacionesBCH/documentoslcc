@@ -115,7 +115,7 @@ export default function TarjetaCard({ index, card, onChange, onRemove, removable
 
       <FileField
         label="Foto delantera de la tarjeta"
-        helpText="Tapa los primeros 12 números de la tarjeta —con un papel, editando la foto o algún objeto que tengas a mano— dejando visibles solo los últimos 4 dígitos y el nombre del titular."
+        helpText="Tapa los primeros 12 números de la tarjeta, usando un papel, editando la foto o algún objeto que tengas a mano, dejando visibles solo los últimos 4 dígitos y el nombre del titular."
         example={<EjemploTarjeta />}
         file={card.photo}
         onChange={(f) => onChange(card.id, { photo: f })}

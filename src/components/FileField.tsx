@@ -28,7 +28,7 @@ export default function FileField({ label, helpText, example, file, onChange }: 
       return
     }
     if (picked.type && !ALLOWED_TYPES.includes(picked.type)) {
-      setError('Formato no soportado — usa JPG, PNG, HEIC o PDF')
+      setError('Formato no soportado, usa JPG, PNG, HEIC o PDF')
       onChange(null)
       return
     }

@@ -158,7 +158,7 @@ export default function SolicitudForm() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
-      {/* Sección 1 — Datos personales */}
+      {/* Sección 1: Datos personales */}
       <section className="space-y-5">
         <h2 className="text-lg font-semibold text-[#043D35]">1. Datos personales</h2>
         <div className="grid gap-5 sm:grid-cols-2">
@@ -222,7 +222,7 @@ export default function SolicitudForm() {
         </div>
       </section>
 
-      {/* Sección 2 — Datos para la transferencia */}
+      {/* Sección 2: Datos para la transferencia */}
       <section className="space-y-5">
         <h2 className="text-lg font-semibold text-[#043D35]">2. Datos para la transferencia</h2>
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -278,7 +278,7 @@ export default function SolicitudForm() {
         )}
       </section>
 
-      {/* Sección 3 — Tarjeta(s) a operar */}
+      {/* Sección 3: Tarjeta(s) a operar */}
       <section className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-[#043D35]">3. Tarjeta(s) a operar</h2>
@@ -304,13 +304,13 @@ export default function SolicitudForm() {
         </div>
       </section>
 
-      {/* Sección 4 — Documentos */}
+      {/* Sección 4: Documentos */}
       <section className="space-y-6">
         <h2 className="text-lg font-semibold text-[#043D35]">4. Documentos</h2>
 
         <FileField
           label="Cédula de identidad"
-          helpText="Foto de tu cédula por delante. Cubre el N° de documento (serie) —con un papel, editando la foto o algún objeto que tengas a mano— dejando visibles tu RUN, nombre y fecha de nacimiento."
+          helpText="Foto de tu cédula por delante. Cubre el N° de documento (serie), usando un papel, editando la foto o algún objeto que tengas a mano, dejando visibles tu RUN, nombre y fecha de nacimiento."
           example={<EjemploCedula />}
           file={idDocument}
           onChange={setIdDocument}

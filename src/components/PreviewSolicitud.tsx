@@ -108,7 +108,7 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-wrap justify-between gap-2 border-b border-[#F1F5F9] py-1.5 text-sm last:border-0">
       <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-[#0F172A]">{value || '—'}</span>
+      <span className="font-medium text-[#0F172A]">{value || '-'}</span>
     </div>
   )
 }

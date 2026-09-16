@@ -19,7 +19,7 @@ npm run dev                  # http://localhost:3000
 | Variable | Descripción |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase (el mismo que usa ProFlow OS) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — sólo se usa en el servidor (Server Actions), nunca se expone al navegador |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role key, sólo se usa en el servidor (Server Actions), nunca se expone al navegador |
 
 Antes de desplegar, correr en el SQL Editor de Supabase la migración `supabase/029_operation_requests.sql` del repo de ProFlow OS (crea la tabla `operation_requests` y el bucket privado `documentos-solicitudes`).
 

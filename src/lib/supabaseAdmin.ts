@@ -10,7 +10,7 @@ if (!supabaseUrl || !serviceRoleKey) {
   )
 }
 
-/** Cliente con service role — sólo se importa desde código de servidor (Server Actions). */
+/** Cliente con service role, sólo se importa desde código de servidor (Server Actions). */
 export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false },
 })
